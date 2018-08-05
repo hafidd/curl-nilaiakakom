@@ -22,7 +22,7 @@ define('LOGIN_ACTION_URL', 'https://siakad.akakom.ac.id/index.php?pModule=zdKbnK
 $postValues = array(
 	'username' => USERNAME,
 	'password' => PASSWORD
-	);
+);
 
 //Initiate cURL.
 $ch = curl_init();
@@ -132,15 +132,33 @@ if($abc) {
 		}
 	}
 
-	$jesen = json_encode($data);
-	
-	// save to file
+
+	// cek jumlah yg sudah ada nilai (data baru)
+	$jml_new = 0;
+	foreach ($data as $matkul) {
+		// nilai ada di index ke-6
+		// php 5.3+
+		$matkul[6] == "" ?: $jml_new++;
+	}
+	// cek jumlah nilai lama
+	$data_old = json_decode(file_get_contents('nilai.json'));
+	$jml_old = 0;
+	foreach ($data_old as $matkul) {
+		$matkul[6] == "" ?: $jml_old++;
+	}
+	// jika beda, kirim notifikasi
+	if($jml_new !== $jml_old) {
+		sendNotif();
+	}
+
+	$jesen = json_encode($data);	
+	// update file
 	$file = fopen('nilai.json','w');
-          fwrite($file, $jesen);
-          fclose($file);
+	fwrite($file, $jesen);
+	fclose($file);
 	
 	// echo	  
-	echo $jesen;
+	//echo $jesen;
 
 	curl_close($ch);
 
@@ -149,3 +167,39 @@ if($abc) {
 	echo "err";
 }
 
+// kirim notif (FCM)
+function sendNotif() {
+	#API access key from Google API's Console
+	define( 'API_ACCESS_KEY', 'FCM API KEY HERE' );
+	//$registrationIds = $_GET['id'];
+	$topic = 'global';
+	#prep the bundle
+	$msg = array
+	(
+		'body' 	=> 'nilai baru',
+		'title'	=> 'Update Nilai',
+		'icon'	=> 'myicon',/*Default Icon*/
+		'sound' => 'mySound'/*Default sound*/
+	);
+	$fields = array
+	(
+	//'to'		=> $registrationIds,
+		'to' => '/topics/' . $topic,
+		'notification'	=> $msg
+	);
+	$headers = array
+	(
+		'Authorization: key=' . API_ACCESS_KEY,
+		'Content-Type: application/json'
+	);
+	#Send Reponse To FireBase Server	
+	$ch = curl_init();
+	curl_setopt( $ch,CURLOPT_URL, 'https://fcm.googleapis.com/fcm/send' );
+	curl_setopt( $ch,CURLOPT_POST, true );
+	curl_setopt( $ch,CURLOPT_HTTPHEADER, $headers );
+	curl_setopt( $ch,CURLOPT_RETURNTRANSFER, true );
+	curl_setopt( $ch,CURLOPT_SSL_VERIFYPEER, false );
+	curl_setopt( $ch,CURLOPT_POSTFIELDS, json_encode( $fields ) );
+	$result = curl_exec($ch );
+	curl_close( $ch );
+}
